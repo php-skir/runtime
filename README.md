@@ -18,7 +18,9 @@ composer require php-skir/runtime
 
 ## What it provides
 
-- `DenseJson` for encoding and decoding Skir dense JSON values.
+- `DenseJson` for encoding Skir dense JSON values and decoding JSON values of either flavor.
+- `ReadableJson` for encoding Skir readable JSON values.
+- `BinaryFormat` for encoding and decoding the Skir binary format.
 - `Type`, `Field`, and `Variant` descriptors for generated DTO metadata.
 - `EnumValue` for Skir enum constants and wrapper variants.
 - `MethodDescriptor` for generated SkirRPC method metadata.
@@ -45,6 +47,44 @@ $data = DenseJson::fromJson($user, $json);
 ```
 
 Struct values are encoded as field-number indexed arrays. Removed fields and sparse field numbers are preserved so generated DTOs can stay compatible with existing Skir schemas.
+
+`DenseJson::fromJson()` and `DenseJson::decode()` accept both the dense and the readable flavor, like the upstream Skir runtimes.
+
+## Readable JSON
+
+```php
+use Skir\Runtime\ReadableJson;
+
+$json = ReadableJson::toJson($user, [
+    'id' => 1,
+    'name' => 'Jane',
+]);
+// {
+//   "id": 1,
+//   "name": "Jane"
+// }
+
+$data = DenseJson::fromJson($user, $json);
+```
+
+The readable flavor matches upstream `toJsonCode(value, "readable")`: structs become objects keyed by field name with default-valued fields omitted, constant enum variants become lower-case names, wrapper variants become `{"kind": ..., "value": ...}`, timestamps become `{"unix_millis": ..., "formatted": ...}` and bytes become `hex:` strings. Because field names are part of the output, prefer the dense flavor for anything that is persisted.
+
+`ReadableJson::encode()` returns the JSON-compatible PHP value. A struct whose fields all hold their default value is returned as an empty `stdClass` so it still encodes as `{}`.
+
+## Binary format
+
+```php
+use Skir\Runtime\BinaryFormat;
+
+$bytes = BinaryFormat::encode($user, [
+    'id' => 1,
+    'name' => 'Jane',
+]);
+
+$data = BinaryFormat::decode($user, $bytes);
+```
+
+The output is byte-for-byte identical to upstream `toBytes()`, including the leading `skir` header, and `decode()` accepts anything upstream `fromBytes()` accepts.
 
 ## Current scope
 
