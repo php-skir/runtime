@@ -28,8 +28,8 @@ final class JsonCodec
             TypeKind::Hash64 => LargeInteger::hash64ToJson($value),
             TypeKind::Float32, TypeKind::Float64 => self::encodeFloat((float) $value),
             TypeKind::Timestamp => self::encodeTimestamp(Numbers::timestampMillis($value), $flavor),
-            TypeKind::String => (string) $value,
-            TypeKind::Bytes => self::encodeBytes((string) $value, $flavor),
+            TypeKind::String => TypeValues::requireString($value),
+            TypeKind::Bytes => self::encodeBytes(TypeValues::requireString($value), $flavor),
             TypeKind::Optional => $value === null ? null : self::encode(TypeValues::itemType($type), $value, $flavor),
             TypeKind::Array => self::encodeArray($type, $value, $flavor),
             TypeKind::Struct => $flavor === JsonFlavor::Readable

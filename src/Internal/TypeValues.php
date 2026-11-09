@@ -10,6 +10,7 @@ use Skir\Runtime\Field;
 use Skir\Runtime\Type;
 use Skir\Runtime\TypeKind;
 use Skir\Runtime\Variant;
+use Stringable;
 
 /**
  * Format-independent knowledge about Skir types shared by every serializer.
@@ -34,6 +35,19 @@ final class TypeValues
         };
     }
 
+    public static function requireString(mixed $value): string
+    {
+        if (is_string($value)) {
+            return $value;
+        }
+
+        if ($value instanceof Stringable) {
+            return (string) $value;
+        }
+
+        throw SkirRuntimeException::invalidValue('Expected a string, got '.get_debug_type($value).'.');
+    }
+
     public static function isDefault(Type $type, mixed $value): bool
     {
         return match ($type->kind) {
@@ -41,7 +55,7 @@ final class TypeValues
             TypeKind::Int32, TypeKind::Float32, TypeKind::Float64 => Numbers::isZero($value),
             TypeKind::Int64, TypeKind::Hash64 => LargeInteger::normalize($value) === 0,
             TypeKind::Timestamp => Numbers::timestampMillis($value) === 0,
-            TypeKind::String, TypeKind::Bytes => (string) $value === '',
+            TypeKind::String, TypeKind::Bytes => self::requireString($value) === '',
             TypeKind::Optional => $value === null,
             TypeKind::Array => $value === [],
             TypeKind::Struct => self::structSlotCount($type, self::requireStructValue($value)) === 0,

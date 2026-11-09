@@ -336,4 +336,16 @@ final class DenseJsonTest extends TestCase
 
         DenseJson::fromJson(Type::array(Type::string()), '"not-array"');
     }
+
+    public function test_it_rejects_non_string_values_for_string_and_bytes_types(): void
+    {
+        foreach ([Type::string(), Type::bytes()] as $type) {
+            try {
+                DenseJson::toJson($type, ['not', 'a', 'string']);
+                $this->fail('Expected a non-string value to be rejected.');
+            } catch (SkirRuntimeException $exception) {
+                $this->assertSame('Expected a string, got array.', $exception->getMessage());
+            }
+        }
+    }
 }
