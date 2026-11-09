@@ -19,7 +19,6 @@ composer require php-skir/runtime
 ## What it provides
 
 - `DenseJson` for encoding and decoding Skir dense JSON values.
-- `Cbor` helpers for optional CBOR bodies and SkirRPC envelopes.
 - `Type`, `Field`, and `Variant` descriptors for generated DTO metadata.
 - `EnumValue` for Skir enum constants and wrapper variants.
 - `MethodDescriptor` for generated SkirRPC method metadata.
@@ -46,23 +45,6 @@ $data = DenseJson::fromJson($user, $json);
 ```
 
 Struct values are encoded as field-number indexed arrays. Removed fields and sparse field numbers are preserved so generated DTOs can stay compatible with existing Skir schemas.
-
-## CBOR
-
-CBOR support is optional and requires `spomky-labs/cbor-php` in the consuming app:
-
-```bash
-composer require spomky-labs/cbor-php
-```
-
-The runtime helper keeps CBOR wrapping shared between server and client packages:
-
-```php
-use Skir\Runtime\Cbor;
-
-$body = Cbor::encodeEnvelope($methodDescriptor, $request);
-$payload = Cbor::decodeEnvelope($body);
-```
 
 ## Current scope
 

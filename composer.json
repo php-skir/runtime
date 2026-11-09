@@ -26,8 +26,7 @@
     },
     "require-dev": {
         "laravel/pint": "^1.29",
-        "phpunit/phpunit": "^12.5",
-        "spomky-labs/cbor-php": "^3.2"
+        "phpunit/phpunit": "^12.5"
     },
     "autoload": {
         "psr-4": {
@@ -41,15 +40,12 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.1.x-dev"
+            "dev-main": "0.2.x-dev"
         }
     },
     "scripts": {
         "format": "pint",
         "test": "phpunit"
-    },
-    "suggest": {
-        "spomky-labs/cbor-php": "Required when using Skir\\Runtime\\Cbor helpers."
     },
     "config": {
         "sort-packages": true
