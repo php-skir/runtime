@@ -19,6 +19,11 @@ final class SkirRuntimeException extends InvalidArgumentException
         return new self("Invalid readable JSON: {$message}", previous: $previous);
     }
 
+    public static function invalidBinary(string $message): self
+    {
+        return new self("Invalid Skir binary data: {$message}");
+    }
+
     public static function invalidValue(string $message): self
     {
         return new self($message);

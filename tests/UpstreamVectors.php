@@ -384,4 +384,157 @@ final class UpstreamVectors
             yield "{$type} {$denseJson}" => [$type, $denseJson, $expectedDenseJson, $expectedReadableJson];
         }
     }
+
+    /**
+     * Upstream fromJson(denseJson) followed by toBytes(value), as hex.
+     *
+     * @return iterable<string, array{string, string, string}>
+     */
+    public static function binaryEncoding(): iterable
+    {
+        $vectors = [
+            ['bool', '1', '736b697201'],
+            ['bool', '0', '736b697200'],
+            ['int32', '0', '736b697200'],
+            ['int32', '1', '736b697201'],
+            ['int32', '231', '736b6972e7'],
+            ['int32', '232', '736b6972e8e800'],
+            ['int32', '65535', '736b6972e8ffff'],
+            ['int32', '65536', '736b6972e900000100'],
+            ['int32', '2147483647', '736b6972e9ffffff7f'],
+            ['int32', '-1', '736b6972ebff'],
+            ['int32', '-256', '736b6972eb00'],
+            ['int32', '-257', '736b6972ecfffe'],
+            ['int32', '-65536', '736b6972ec0000'],
+            ['int32', '-65537', '736b6972edfffffeff'],
+            ['int32', '-2147483648', '736b6972ed00000080'],
+            ['int64', '0', '736b697200'],
+            ['int64', '5', '736b697205'],
+            ['int64', '2147483647', '736b6972e9ffffff7f'],
+            ['int64', '2147483648', '736b6972ee0000008000000000'],
+            ['int64', '-2147483648', '736b6972ed00000080'],
+            ['int64', '-2147483649', '736b6972eeffffff7fffffffff'],
+            ['int64', '"9223372036854775807"', '736b6972eeffffffffffffff7f'],
+            ['int64', '"-9223372036854775808"', '736b6972ee0000000000000080'],
+            ['int64', '"9007199254740993"', '736b6972ee0100000000002000'],
+            ['hash64', '0', '736b697200'],
+            ['hash64', '231', '736b6972e7'],
+            ['hash64', '232', '736b6972e8e800'],
+            ['hash64', '65536', '736b6972e900000100'],
+            ['hash64', '4294967295', '736b6972e9ffffffff'],
+            ['hash64', '4294967296', '736b6972ea0000000001000000'],
+            ['hash64', '"9223372036854775808"', '736b6972ea0000000000000080'],
+            ['hash64', '"18446744073709551615"', '736b6972eaffffffffffffffff'],
+            ['float32', '0', '736b697200'],
+            ['float32', '1.5', '736b6972f00000c03f'],
+            ['float32', '1.1', '736b6972f0cdcc8c3f'],
+            ['float32', '"NaN"', '736b6972f00000c07f'],
+            ['float32', '"-Infinity"', '736b6972f0000080ff'],
+            ['float64', '0', '736b697200'],
+            ['float64', '-0', '736b697200'],
+            ['float64', '1.5', '736b6972f1000000000000f83f'],
+            ['float64', '"NaN"', '736b6972f1000000000000f87f'],
+            ['float64', '"Infinity"', '736b6972f1000000000000f07f'],
+            ['float64', '1e300', '736b6972f19c7500883ce4377e'],
+            ['timestamp', '0', '736b697200'],
+            ['timestamp', '1743682787123', '736b6972ef33d797fb95010000'],
+            ['timestamp', '-1', '736b6972efffffffffffffffff'],
+            ['timestamp', '8640000000000000', '736b6972ef0000dcc208b21e00'],
+            ['string', '""', '736b6972f2'],
+            ['string', '"Hello"', '736b6972f30548656c6c6f'],
+            ['string', '"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"', '736b6972f34d6161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161'],
+            ['string', '"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"', '736b6972f3e84e00616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161'],
+            ['string', '"éééééééééééééééééééééééééééééééééééééééé"', '736b6972f350c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9'],
+            ['string', '"\\ud83d\\ude00"', '736b6972f304f09f9880'],
+            ['bytes', '""', '736b6972f4'],
+            ['bytes', '"AQL/"', '736b6972f5030102ff'],
+            ['optionalString', 'null', '736b6972ff'],
+            ['optionalString', '""', '736b6972f2'],
+            ['optionalString', '"x"', '736b6972f30178'],
+            ['matrix', '[]', '736b6972f6'],
+            ['matrix', '[[1,2],[],[3]]', '736b6972f9f80102f6f703'],
+            ['matrix', '[[],[],[],[]]', '736b6972fa04f6f6f6f6'],
+            ['address', '[]', '736b6972f6'],
+            ['address', '["Antwerp"]', '736b6972f7f307416e7477657270'],
+            ['addresses', '[[],["x"]]', '736b6972f8f6f7f30178'],
+            ['status', '0', '736b697200'],
+            ['status', '1', '736b697201'],
+            ['status', '[2,1743682787000]', '736b6972fcefb8d697fb95010000'],
+            ['status', '[3,[]]', '736b6972fdf6'],
+            ['status', '[3,["Paris"]]', '736b6972fdf7f3055061726973'],
+            ['status', '[300,"s"]', '736b6972f8e82c01f30173'],
+            ['user', '[]', '736b6972f6'],
+            ['user', '[400,0,"Jane"]', '736b6972f9e8900100f3044a616e65'],
+            ['user', '[0,0,"",null,[],0,"","NaN"]', '736b6972fa080000f2fff600f4f1000000000000f87f'],
+            ['user', '[400,0,"Jane","jj",["a","b/c"],1743682787123,"AQID",2.5,"9007199254740993","18446744073709551615",1,[2,1743682787000],["Antwerp"],[[1,2],[],[3]]]', '736b6972fa0ee8900100f3044a616e65f3026a6af8f30161f303622f63ef33d797fb95010000f503010203f10000000000000440ee0100000000002000eaffffffffffffffff01fcefb8d697fb95010000f7f307416e7477657270f9f80102f6f703'],
+        ];
+
+        foreach ($vectors as [$type, $denseJson, $expectedHex]) {
+            yield "{$type} {$denseJson}" => [$type, $denseJson, $expectedHex];
+        }
+    }
+
+    /**
+     * Upstream fromBytes(bytes) followed by toJson(value, "dense"), or the error upstream throws.
+     *
+     * @return iterable<string, array{string, string, string}>
+     */
+    public static function binaryDecoding(): iterable
+    {
+        $vectors = [
+            ['bool', '736b697200', '0'],
+            ['bool', '736b697201', '1'],
+            ['bool', '736b6972e80100', '1'],
+            ['bool', '736b6972f00000c07f', '0'],
+            ['bool', '736b6972eb00', '1'],
+            ['int32', '736b6972ea0000000001000000', '0'],
+            ['int32', '736b6972f00000c03f', '1'],
+            ['int32', '736b6972f1cdcccccccccc0440', '2'],
+            ['int32', '736b6972ee0100000001000000', '1'],
+            ['int64', '736b6972eaffffffffffffffff', '"9223372036854775807"'],
+            ['int64', '736b6972f1000000000000f83f', '2'],
+            ['int64', '736b6972ed00000080', '-2147483648'],
+            ['hash64', '736b6972eeffffffffffffffff', '0'],
+            ['hash64', '736b6972eaffffffffffffffff', '"18446744073709551615"'],
+            ['float64', '736b697205', '5'],
+            ['float64', '736b6972ee0100000000000000', '1'],
+            ['float64', '736b6972eaffffffffffffffff', '18446744073709552000'],
+            ['timestamp', '736b6972e9ffffffff', '4294967295'],
+            ['timestamp', '736b6972eeffffffffffffff7f', '8640000000000000'],
+            ['timestamp', '736b6972f1000000000000f83f', '2'],
+            ['string', '736b697200', '""'],
+            ['string', '736b6972f2', '""'],
+            ['string', '736b6972f30161', '"a"'],
+            ['bytes', '736b697200', '""'],
+            ['bytes', '736b6972f4', '""'],
+            ['bytes', '736b6972f50201ff', '"Af8="'],
+            ['optionalString', '736b6972ff', 'null'],
+            ['optionalString', '736b697200', '""'],
+            ['optionalString', '736b6972f30161', '"a"'],
+            ['matrix', '736b697200', '[]'],
+            ['matrix', '736b6972f6', '[]'],
+            ['matrix', '736b6972f7f80102', '[[1,2]]'],
+            ['status', '736b697200', '0'],
+            ['status', '736b697201', '1'],
+            ['status', '736b697202', '[2,0]'],
+            ['status', '736b697263', '0'],
+            ['status', '736b6972fc05', '[2,5]'],
+            ['status', '736b6972fb05', '1'],
+            ['status', '736b6972fdf7f30158', '[3,["X"]]'],
+            ['status', '736b6972fef3016b', '0'],
+            ['status', '736b6972f8e82c01f30173', '[300,"s"]'],
+            ['status', '736b6972f863f30173', '0'],
+            ['status', '736b6972fdf7', 'THROWS Truncated binary array'],
+            ['address', '736b697200', '[]'],
+            ['address', '736b6972f6', '[]'],
+            ['address', '736b6972f7f30158', '["X"]'],
+            ['address', '736b6972fa04f30158f9010203eaffffffffffffffff05', '["X"]'],
+            ['user', '736b6972f9e99001000001f30158', '[400,0,"X"]'],
+            ['user', '736b6972f9e990010000f9010203f30158', '[400,0,"X"]'],
+        ];
+
+        foreach ($vectors as [$type, $hex, $expected]) {
+            yield "{$type} {$hex}" => [$type, $hex, $expected];
+        }
+    }
 }
