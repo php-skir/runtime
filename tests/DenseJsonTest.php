@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Skir\Runtime\Tests;
 
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\DataProviderExternal;
 use PHPUnit\Framework\TestCase;
 use Skir\Runtime\DenseJson;
 use Skir\Runtime\EnumValue;
@@ -28,11 +29,30 @@ final class DenseJsonTest extends TestCase
         $this->assertSame('"AQID"', DenseJson::toJson(Type::bytes(), "\x01\x02\x03"));
     }
 
+    public function test_it_wraps_and_clamps_integers_like_upstream(): void
+    {
+        $this->assertSame('1', DenseJson::toJson(Type::int32(), 4_294_967_297));
+        $this->assertSame('-2147483648', DenseJson::toJson(Type::int32(), 2_147_483_648));
+        $this->assertSame('"9223372036854775807"', DenseJson::toJson(Type::int64(), '99999999999999999999'));
+        $this->assertSame('42', DenseJson::toJson(Type::int64(), '0042'));
+        $this->assertSame('0', DenseJson::toJson(Type::hash64(), -5));
+        $this->assertSame('"18446744073709551615"', DenseJson::toJson(Type::hash64(), '99999999999999999999'));
+    }
+
+    public function test_it_rejects_non_integer_int64_values(): void
+    {
+        $this->expectException(SkirRuntimeException::class);
+        $this->expectExceptionMessage('Skir int64/hash64 string values must contain only digits.');
+
+        DenseJson::toJson(Type::int64(), '12abc');
+    }
+
     public function test_it_preserves_permissive_primitive_wire_coercion(): void
     {
         $this->assertTrue(DenseJson::fromJson(Type::bool(), '"false"'));
         $this->assertSame(0, DenseJson::fromJson(Type::int32(), '"not-a-number"'));
-        $this->assertSame('9223372036854775807', DenseJson::fromJson(Type::int64(), '"9223372036854775807"'));
+        $this->assertSame(PHP_INT_MAX, DenseJson::fromJson(Type::int64(), '"9223372036854775807"'));
+        $this->assertSame('18446744073709551615', DenseJson::fromJson(Type::hash64(), '"18446744073709551615"'));
         $this->assertSame(2.5, DenseJson::fromJson(Type::float64(), '"2.5"'));
         $this->assertSame(1743682787000, DenseJson::fromJson(Type::timestamp(), '"1743682787000"'));
         $this->assertSame("\x01\x02\x03", DenseJson::fromJson(Type::bytes(), '"AQID"'));
@@ -146,177 +166,108 @@ final class DenseJsonTest extends TestCase
         );
     }
 
-    #[DataProvider('compatibleEnumWrapperVariantNumbers')]
-    public function test_it_normalizes_integer_equivalent_enum_wrapper_variant_numbers(string $json): void
+    #[DataProviderExternal(UpstreamVectors::class, 'decoding')]
+    public function test_it_decodes_both_json_flavors_like_upstream(string $type, string $json, string $expectedDenseJson): void
     {
-        $subscriptionStatus = Type::enum([
-            Variant::wrapper('premium_since', 2, Type::timestamp()),
-        ]);
+        $skirType = UpstreamVectors::type($type);
 
+        $this->assertSame($expectedDenseJson, DenseJson::toJson($skirType, DenseJson::fromJson($skirType, $json)));
+    }
+
+    #[DataProviderExternal(UpstreamVectors::class, 'encoding')]
+    public function test_it_matches_upstream_dense_json_code(string $type, string $denseJson, string $expectedDenseJson, string $expectedReadableJson): void
+    {
+        $skirType = UpstreamVectors::type($type);
+
+        $this->assertSame($expectedDenseJson, DenseJson::toJson($skirType, DenseJson::fromJson($skirType, $denseJson)));
+    }
+
+    public function test_it_decodes_readable_structs_keyed_by_field_name(): void
+    {
+        $decoded = DenseJson::fromJson(UpstreamVectors::user(), '{"user_id":400,"name":"Jane","unknown":1,"created_at":{"unix_millis":5,"formatted":"x"},"avatar":"hex:0102","status":"free","address":{"city":"Antwerp"}}');
+
+        $this->assertEquals([
+            'user_id' => 400,
+            'name' => 'Jane',
+            'nickname' => null,
+            'tags' => [],
+            'created_at' => 5,
+            'avatar' => "\x01\x02",
+            'score' => 0.0,
+            'big' => 0,
+            'hash' => 0,
+            'active' => false,
+            'status' => EnumValue::constant('free'),
+            'address' => ['city' => 'Antwerp'],
+            'matrix' => [],
+        ], $decoded);
+    }
+
+    public function test_it_decodes_json_objects_given_as_std_class(): void
+    {
+        $decoded = DenseJson::decode(UpstreamVectors::status(), json_decode('{"kind":"trial","value":{"city":"Paris"}}'));
+
+        $this->assertEquals(EnumValue::wrapper('trial', ['city' => 'Paris']), $decoded);
+    }
+
+    public function test_it_decodes_readable_enums(): void
+    {
+        $status = UpstreamVectors::status();
+
+        $this->assertEquals(EnumValue::constant('free'), DenseJson::fromJson($status, '"free"'));
+        $this->assertEquals(EnumValue::constant('free'), DenseJson::fromJson($status, '"FREE"'));
+        $this->assertEquals(EnumValue::constant('UNKNOWN'), DenseJson::fromJson($status, '"unknown"'));
+        $this->assertEquals(EnumValue::constant('UNKNOWN'), DenseJson::fromJson($status, '"not_a_variant"'));
+        $this->assertEquals(EnumValue::wrapper('premium_since', 0), DenseJson::fromJson($status, '"premium_since"'));
         $this->assertEquals(
-            EnumValue::wrapper('premium_since', 1743682787000),
-            DenseJson::fromJson($subscriptionStatus, $json),
+            EnumValue::wrapper('premium_since', 1_743_682_787_000),
+            DenseJson::fromJson($status, '{"kind":"premium_since","value":{"unix_millis":1743682787000,"formatted":"2025-04-03T12:19:47.000Z"}}'),
         );
     }
 
-    /**
-     * @return iterable<string, array{string}>
-     */
-    public static function compatibleEnumWrapperVariantNumbers(): iterable
+    public function test_it_decodes_enum_values_that_changed_shape_like_upstream(): void
     {
-        yield 'numeric string' => ['["2",1743682787000]'];
-        yield 'integral float' => ['[2.0,1743682787000]'];
+        $status = UpstreamVectors::status();
+
+        $this->assertEquals(EnumValue::wrapper('premium_since', 0), DenseJson::fromJson($status, '2'));
+        $this->assertEquals(EnumValue::constant('free'), DenseJson::fromJson($status, '[1,1743682787000]'));
+        $this->assertEquals(EnumValue::constant('UNKNOWN'), DenseJson::fromJson($status, '[99,1743682787000]'));
     }
 
-    #[DataProvider('compatibleScalarEnumVariantNumbers')]
-    public function test_it_normalizes_integer_equivalent_scalar_enum_variant_numbers(string $json): void
+    #[DataProvider('jsonValuesRejectedByUpstream')]
+    public function test_it_rejects_json_values_upstream_rejects(string $type, string $json): void
     {
-        $subscriptionStatus = Type::enum([
-            Variant::constant('free', 1),
-        ]);
-
-        $this->assertEquals(
-            EnumValue::constant('free'),
-            DenseJson::fromJson($subscriptionStatus, $json),
-        );
-    }
-
-    /**
-     * @return iterable<string, array{string}>
-     */
-    public static function compatibleScalarEnumVariantNumbers(): iterable
-    {
-        yield 'numeric string' => ['"1"'];
-        yield 'integral float' => ['1.0'];
-    }
-
-    #[DataProvider('compatibleUnknownEnumVariantNumbers')]
-    public function test_it_preserves_unknown_for_integer_equivalent_zero_values(string $json): void
-    {
-        $subscriptionStatus = Type::enum([
-            Variant::constant('free', 1),
-        ]);
-
-        $this->assertEquals(
-            EnumValue::constant('UNKNOWN'),
-            DenseJson::fromJson($subscriptionStatus, $json),
-        );
-    }
-
-    /**
-     * @return iterable<string, array{string}>
-     */
-    public static function compatibleUnknownEnumVariantNumbers(): iterable
-    {
-        yield 'numeric string zero' => ['"0"'];
-        yield 'integral float zero' => ['0.0'];
-    }
-
-    #[DataProvider('invalidScalarEnumVariantNumbers')]
-    public function test_it_rejects_invalid_scalar_enum_variant_numbers(string $json): void
-    {
-        $subscriptionStatus = Type::enum([
-            Variant::constant('free', 1),
-        ]);
-
         $this->expectException(SkirRuntimeException::class);
-        $this->expectExceptionMessage('Skir enum variant numbers must be safe integer-equivalent values.');
 
-        DenseJson::fromJson($subscriptionStatus, $json);
-    }
-
-    /**
-     * @return iterable<string, array{string}>
-     */
-    public static function invalidScalarEnumVariantNumbers(): iterable
-    {
-        yield 'nonnumeric string' => ['"premium_since"'];
-        yield 'non-integral float' => ['1.5'];
-        yield 'non-finite float' => ['1e309'];
-        yield 'out-of-range integer' => ['9007199254740992'];
-        yield 'out-of-range string' => ['"9007199254740992"'];
-        yield 'noncanonical numeric string' => ['"1.0"'];
-    }
-
-    public function test_it_does_not_extend_scalar_normalization_to_wrapper_variants(): void
-    {
-        $subscriptionStatus = Type::enum([
-            Variant::wrapper('premium_since', 2, Type::timestamp()),
-        ]);
-
-        $this->expectException(SkirRuntimeException::class);
-        $this->expectExceptionMessage('Skir enum wrapper variant [premium_since] must be encoded as a wrapper array.');
-
-        DenseJson::fromJson($subscriptionStatus, '"2"');
-    }
-
-    public function test_it_preserves_native_integer_scalar_wrapper_variant_behavior(): void
-    {
-        $subscriptionStatus = Type::enum([
-            Variant::wrapper('premium_since', 2, Type::timestamp()),
-        ]);
-
-        $this->assertEquals(
-            EnumValue::constant('premium_since'),
-            DenseJson::fromJson($subscriptionStatus, '2'),
-        );
-    }
-
-    public function test_it_decodes_numeric_key_json_objects_as_enum_wrapper_tuples(): void
-    {
-        $subscriptionStatus = Type::enum([
-            Variant::wrapper('premium_since', 2, Type::timestamp()),
-        ]);
-
-        $this->assertEquals(
-            EnumValue::wrapper('premium_since', 1743682787000),
-            DenseJson::fromJson($subscriptionStatus, '{"0":2,"1":1743682787000}'),
-        );
-    }
-
-    public function test_it_rejects_out_of_range_float_variant_numbers_before_integer_casting(): void
-    {
-        $subscriptionStatus = Type::enum([
-            Variant::wrapper('premium_since', 4096, Type::timestamp()),
-        ]);
-
-        $this->expectException(SkirRuntimeException::class);
-        $this->expectExceptionMessage('Skir enum variant numbers must be safe integer-equivalent values.');
-
-        DenseJson::fromJson($subscriptionStatus, '[18446744073709555712,1743682787000]');
-    }
-
-    #[DataProvider('malformedEnumWrappers')]
-    public function test_it_rejects_malformed_enum_wrappers(string $json, string $message): void
-    {
-        $subscriptionStatus = Type::enum([
-            Variant::constant('free', 1),
-            Variant::wrapper('premium_since', 2, Type::timestamp()),
-        ]);
-
-        $this->expectException(SkirRuntimeException::class);
-        $this->expectExceptionMessage($message);
-
-        DenseJson::fromJson($subscriptionStatus, $json);
+        DenseJson::fromJson(UpstreamVectors::type($type), $json);
     }
 
     /**
      * @return iterable<string, array{string, string}>
      */
-    public static function malformedEnumWrappers(): iterable
+    public static function jsonValuesRejectedByUpstream(): iterable
     {
-        yield 'empty tuple' => ['[]', 'Skir enum wrapper JSON values must contain exactly a variant number and payload.'];
-        yield 'missing payload' => ['[2]', 'Skir enum wrapper JSON values must contain exactly a variant number and payload.'];
-        yield 'excess tuple element' => ['[2,1743682787000,"extra"]', 'Skir enum wrapper JSON values must contain exactly a variant number and payload.'];
-        yield 'named-key object' => ['{"variant":2,"payload":1743682787000}', 'Skir enum wrapper JSON values must contain exactly a variant number and payload.'];
-        yield 'sparse numeric-key object' => ['{"0":2,"2":1743682787000}', 'Skir enum wrapper JSON values must contain exactly a variant number and payload.'];
-        yield 'non-integral variant number' => ['[2.5,1743682787000]', 'Skir enum variant numbers must be safe integer-equivalent values.'];
-        yield 'non-finite variant number' => ['[1e309,1743682787000]', 'Skir enum variant numbers must be safe integer-equivalent values.'];
-        yield 'out-of-range integer variant number' => ['[9007199254740992,1743682787000]', 'Skir enum variant numbers must be safe integer-equivalent values.'];
-        yield 'out-of-range string variant number' => ['["9007199254740992",1743682787000]', 'Skir enum variant numbers must be safe integer-equivalent values.'];
-        yield 'noncanonical numeric string' => ['["2.0",1743682787000]', 'Skir enum variant numbers must be safe integer-equivalent values.'];
-        yield 'unknown variant number' => ['[99,1743682787000]', 'Skir enum variant [99] is not defined.'];
-        yield 'constant variant with payload' => ['[1,1743682787000]', 'Skir enum variant [free] does not carry a payload.'];
+        yield 'string from number' => ['string', '5'];
+        yield 'string from null' => ['string', 'null'];
+        yield 'string from array' => ['string', '[]'];
+        yield 'string from bool' => ['string', 'true'];
+        yield 'enum from null' => ['status', 'null'];
+        yield 'enum from bool' => ['status', 'true'];
+        yield 'array from string' => ['matrix', '"x"'];
+        yield 'array from object' => ['matrix', '{"a":1}'];
+        yield 'array from null' => ['matrix', 'null'];
+        yield 'struct from string' => ['address', '"x"'];
+        yield 'struct from bool' => ['address', 'true'];
+        yield 'struct from number' => ['address', '5'];
+        yield 'int64 from text' => ['int64', '"abc"'];
+        yield 'int64 from null' => ['int64', 'null'];
+        yield 'int64 from decimal string' => ['int64', '"1.5"'];
+        yield 'timestamp from text' => ['timestamp', '"abc"'];
+        yield 'timestamp from null' => ['timestamp', 'null'];
+        yield 'bytes from number' => ['bytes', '5'];
+        yield 'bytes from invalid hex' => ['bytes', '"hex:zz"'];
+        yield 'bytes from invalid base64' => ['bytes', '"!!!"'];
+        yield 'bytes from null' => ['bytes', 'null'];
     }
 
     public function test_it_decodes_zero_as_default_for_forward_compatibility(): void
