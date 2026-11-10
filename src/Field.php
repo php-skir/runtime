@@ -11,11 +11,12 @@ final readonly class Field
         public int $number,
         public ?Type $type,
         public bool $removed,
+        public ?string $doc = null,
     ) {}
 
-    public static function value(string $name, int $number, Type $type): self
+    public static function value(string $name, int $number, Type $type, ?string $doc = null): self
     {
-        return new self($name, $number, $type, false);
+        return new self($name, $number, $type, false, $doc);
     }
 
     public static function removed(int $number): self

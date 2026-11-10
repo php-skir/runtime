@@ -11,5 +11,6 @@ final readonly class MethodDescriptor
         public int $number,
         public Type $requestType,
         public Type $responseType,
+        public ?string $doc = null,
     ) {}
 }
