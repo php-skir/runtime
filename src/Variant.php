@@ -10,16 +10,17 @@ final readonly class Variant
         public string $name,
         public int $number,
         public ?Type $payloadType,
+        public ?string $doc = null,
     ) {}
 
-    public static function constant(string $name, int $number): self
+    public static function constant(string $name, int $number, ?string $doc = null): self
     {
-        return new self($name, $number, null);
+        return new self($name, $number, null, $doc);
     }
 
-    public static function wrapper(string $name, int $number, Type $payloadType): self
+    public static function wrapper(string $name, int $number, Type $payloadType, ?string $doc = null): self
     {
-        return new self($name, $number, $payloadType);
+        return new self($name, $number, $payloadType, $doc);
     }
 
     public function isWrapper(): bool

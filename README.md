@@ -46,6 +46,16 @@ $json = DenseJson::toJson($user, [
 $data = DenseJson::fromJson($user, $json);
 ```
 
+A struct, enum, field, variant or method can also carry what the schema calls it. This is descriptive only: tools such as the server's RPC Studio show it, and serialization ignores it.
+
+```php
+$session = Type::struct(
+    [Field::value('token', 0, Type::string(), doc: 'Send it as a bearer token.')],
+    recordId: 'identity/identity.skir:Session',
+    doc: 'What a client stores after signing in.',
+);
+```
+
 Struct values are encoded as field-number indexed arrays. Removed fields and sparse field numbers are preserved so generated DTOs can stay compatible with existing Skir schemas.
 
 `DenseJson::fromJson()` and `DenseJson::decode()` accept both the dense and the readable flavor, like the upstream Skir runtimes.

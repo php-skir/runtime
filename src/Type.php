@@ -15,6 +15,8 @@ final readonly class Type
         public ?Type $itemType = null,
         public array $fields = [],
         public array $variants = [],
+        public ?string $recordId = null,
+        public ?string $doc = null,
     ) {}
 
     public static function bool(): self
@@ -73,22 +75,25 @@ final readonly class Type
     }
 
     /**
+     * `$recordId` is the record's identity in the schema, `path/to/module.skir:Qualified.Name`.
+     * It and `$doc` only describe the type; neither affects serialization.
+     *
      * @param  array<int, Field>  $fields
      */
-    public static function struct(array $fields): self
+    public static function struct(array $fields, ?string $recordId = null, ?string $doc = null): self
     {
         usort($fields, fn (Field $left, Field $right): int => $left->number <=> $right->number);
 
-        return new self(TypeKind::Struct, fields: $fields);
+        return new self(TypeKind::Struct, fields: $fields, recordId: $recordId, doc: $doc);
     }
 
     /**
      * @param  array<int, Variant>  $variants
      */
-    public static function enum(array $variants): self
+    public static function enum(array $variants, ?string $recordId = null, ?string $doc = null): self
     {
         usort($variants, fn (Variant $left, Variant $right): int => $left->number <=> $right->number);
 
-        return new self(TypeKind::Enum, variants: $variants);
+        return new self(TypeKind::Enum, variants: $variants, recordId: $recordId, doc: $doc);
     }
 }
